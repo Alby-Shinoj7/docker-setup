@@ -18,8 +18,7 @@ WSL=0
 OS_FAMILY=""
 OS_NAME=""
 OS_VERSION_ID=""
-OS_ID_LIKE=""
-REPO_OS_NAME=""
+
 PACKAGE_MANAGER=""
 SYSTEMD_AVAILABLE=1
 SUPPORTED_CHANNELS=(stable test)
@@ -240,9 +239,6 @@ check_prereqs() {
     done
 }
 
-lower() {
-    printf '%s' "${1,,}"
-}
 
 read_os_release() {
     if [[ ! -r /etc/os-release ]]; then
@@ -250,214 +246,39 @@ read_os_release() {
     fi
     # shellcheck disable=SC1091
     source /etc/os-release
-    OS_NAME=$(lower "${ID:-unknown}")
-    OS_VERSION_ID=${VERSION_ID:-unknown}
-    OS_ID_LIKE=$(lower "${ID_LIKE:-}")
-    REPO_OS_NAME="$OS_NAME"
 
-    case "$OS_NAME" in
-        debian|ubuntu)
-            OS_FAMILY="debian"
-            PACKAGE_MANAGER="apt"
-            ;;
-        pop|elementary|zorin|neon|linuxmint)
-            OS_FAMILY="debian"
-            PACKAGE_MANAGER="apt"
-            REPO_OS_NAME="ubuntu"
-            ;;
-        kali|parrot|raspbian)
-            OS_FAMILY="debian"
-            PACKAGE_MANAGER="apt"
-            REPO_OS_NAME="debian"
-            ;;
-        rhel|rocky|almalinux|ol|centos|centos-stream)
-            OS_FAMILY="rhel"
-            PACKAGE_MANAGER="dnf"
-            REPO_OS_NAME="centos"
             ;;
         fedora)
             OS_FAMILY="fedora"
             PACKAGE_MANAGER="dnf"
-            REPO_OS_NAME="fedora"
+
             ;;
         amzn)
             OS_FAMILY="amazon"
             PACKAGE_MANAGER="yum"
-            REPO_OS_NAME="centos"
+
             ;;
         opensuse-leap|opensuse-tumbleweed|sles)
             OS_FAMILY="suse"
             PACKAGE_MANAGER="zypper"
-            REPO_OS_NAME="sles"
-            ;;
-        arch|manjaro|endeavouros)
-            OS_FAMILY="arch"
-            PACKAGE_MANAGER="pacman"
-            REPO_OS_NAME="arch"
-            ;;
-        *)
-            :
-            ;;
-    esac
 
-    if [[ -z $OS_FAMILY && -n $OS_ID_LIKE ]]; then
-        for like in $OS_ID_LIKE; do
-            case "$like" in
-                debian|ubuntu)
-                    OS_FAMILY="debian"
-                    PACKAGE_MANAGER="apt"
-                    REPO_OS_NAME="$like"
-                    break
-                    ;;
-                rhel|centos|fedora)
-                    OS_FAMILY="rhel"
-                    if command -v dnf >/dev/null 2>&1; then
-                        PACKAGE_MANAGER="dnf"
-                    else
-                        PACKAGE_MANAGER="yum"
-                    fi
-                    REPO_OS_NAME="centos"
-                    break
-                    ;;
-                suse)
-                    OS_FAMILY="suse"
-                    PACKAGE_MANAGER="zypper"
-                    REPO_OS_NAME="sles"
-                    break
-                    ;;
-                arch)
-                    OS_FAMILY="arch"
-                    PACKAGE_MANAGER="pacman"
-                    REPO_OS_NAME="arch"
-                    break
-                    ;;
-            esac
-        done
-    fi
-
-    if [[ -z $OS_FAMILY ]]; then
-        die "Unsupported distribution '$OS_NAME'."
-    fi
-
-    if [[ $OS_FAMILY == rhel ]]; then
-        if command -v dnf >/dev/null 2>&1; then
-            PACKAGE_MANAGER="dnf"
-        elif command -v yum >/dev/null 2>&1; then
-            PACKAGE_MANAGER="yum"
-        fi
-    fi
-}
-
-map_codename_to_version() {
-    local base="$1"
-    local codename="$2"
-    case "$base" in
-        ubuntu)
-            case "$codename" in
-                focal) printf '20.04'; return 0 ;;
-                jammy) printf '22.04'; return 0 ;;
-                noble) printf '24.04'; return 0 ;;
-            esac
-            ;;
-        debian)
-            case "$codename" in
-                bullseye) printf '11'; return 0 ;;
-                bookworm) printf '12'; return 0 ;;
-            esac
-            ;;
-    esac
-    return 1
-}
-
-resolve_base_version() {
-    local base="$1"
-    local version=""
-    case "$base" in
-        ubuntu)
-            local codename="${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}"
-            if [[ -n $codename ]]; then
-                version=$(map_codename_to_version "$base" "$codename" || true)
-            fi
-            if [[ -z $version && $OS_NAME == "ubuntu" ]]; then
-                version="$OS_VERSION_ID"
-            fi
-            ;;
-        debian)
-            local codename="${DEBIAN_CODENAME:-${VERSION_CODENAME:-}}"
-            if [[ -n $codename ]]; then
-                version=$(map_codename_to_version "$base" "$codename" || true)
-            fi
-            if [[ -z $version && $OS_NAME == "debian" ]]; then
-                version="${OS_VERSION_ID%%.*}"
-            fi
-            ;;
-    esac
-    printf '%s' "$version"
 }
 
 validate_supported_versions() {
     case "$OS_FAMILY" in
         debian)
-            if [[ $REPO_OS_NAME == "ubuntu" ]]; then
-                local ubuntu_version
-                ubuntu_version=$(resolve_base_version "ubuntu")
-                if [[ -n $ubuntu_version ]]; then
-                    case "$ubuntu_version" in
-                        20.04|22.04|24.04) : ;;
-                        *) die "Unsupported Ubuntu-based version '$ubuntu_version'." ;;
-                    esac
-                else
-                    warn "Unable to determine Ubuntu base release for '$OS_NAME'; continuing without strict validation."
-                fi
-                if [[ $OS_NAME != "ubuntu" ]]; then
-                    warn "Detected Ubuntu derivative '$OS_NAME'; proceeding as Ubuntu ${ubuntu_version:-unknown}."
-                fi
-            else
-                local debian_version
-                debian_version=$(resolve_base_version "debian")
-                if [[ -n $debian_version ]]; then
-                    case "$debian_version" in
-                        11|12) : ;;
-                        *) die "Unsupported Debian-based version '$debian_version'." ;;
-                    esac
-                else
-                    warn "Unable to determine Debian base release for '$OS_NAME'; continuing without strict validation."
-                fi
-                if [[ $OS_NAME != "debian" ]]; then
-                    warn "Detected Debian derivative '$OS_NAME'; proceeding as Debian ${debian_version:-unknown}."
-                fi
-            fi
-            ;;
-        rhel)
-            case "$OS_VERSION_ID" in
-                8*|9*) : ;;
-                *) die "Unsupported RHEL-based version '$OS_VERSION_ID'." ;;
-            esac
-            case "$OS_NAME" in
-                rhel|rocky|almalinux|centos|ol|centos-stream) : ;;
-                *) warn "Detected RHEL derivative '$OS_NAME'; proceeding with centos repository metadata." ;;
+
             esac
             ;;
         fedora)
             [[ ${OS_VERSION_ID%%.*} -ge 38 ]] || die "Fedora $OS_VERSION_ID is not supported (need 38+)."
-            if [[ $OS_NAME != "fedora" ]]; then
-                warn "Detected Fedora derivative '$OS_NAME'; proceeding as Fedora ${OS_VERSION_ID%%.*}."
-            fi
+
             ;;
         amazon)
             [[ $OS_VERSION_ID == "2" ]] || die "Only Amazon Linux 2 is supported."
             ;;
         suse)
-            case "$OS_NAME" in
-                opensuse-leap|opensuse-tumbleweed|sles) : ;;
-                *) warn "Detected SUSE derivative '$OS_NAME'; proceeding with generic openSUSE settings." ;;
-            esac
-            ;;
-        arch)
-            case "$OS_NAME" in
-                arch|manjaro|endeavouros) : ;;
-                *) warn "Detected Arch derivative '$OS_NAME'; proceeding with pacman tooling." ;;
-            esac
+
             ;;
         *)
             die "Unsupported OS family '$OS_FAMILY'."
@@ -533,13 +354,7 @@ verify_and_install_key() {
 setup_repo_debian() {
     local arch
     arch=$(dpkg --print-architecture)
-    local repo_os="${REPO_OS_NAME:-$OS_NAME}"
-    local codename="${VERSION_CODENAME:-}"
-    if [[ $repo_os == "ubuntu" && -n ${UBUNTU_CODENAME:-} ]]; then
-        codename=${UBUNTU_CODENAME}
-    elif [[ $repo_os == "debian" && -n ${DEBIAN_CODENAME:-} ]]; then
-        codename=${DEBIAN_CODENAME}
-    fi
+
     if [[ -z $codename ]]; then
         if command -v lsb_release >/dev/null 2>&1; then
             codename=$(lsb_release -cs)
@@ -547,7 +362,7 @@ setup_repo_debian() {
             die "Unable to determine Debian/Ubuntu codename."
         fi
     fi
-    local repo="deb [arch=$arch signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$repo_os $codename $CHANNEL"
+
 
     if [[ $DRY_RUN -eq 1 ]]; then
         log "[dry-run] Would configure APT repo: $repo"
@@ -563,7 +378,7 @@ setup_repo_debian() {
         run_root_cmd mkdir -p /etc/apt/keyrings
         run_root_cmd chmod 0755 /etc/apt/keyrings
     fi
-    verify_and_install_key "https://download.docker.com/linux/$repo_os/gpg" \
+
         "/etc/apt/keyrings/docker.gpg" "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
 
     local repo_file="/etc/apt/sources.list.d/docker.list"

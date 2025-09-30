@@ -3,13 +3,7 @@
 This project provides a single, portable Bash script (`install-docker.sh`) that installs or removes Docker Engine and its tooling across multiple Linux distributions in an idempotent and auditable way.
 
 ## Supported distributions
-- Debian 11, 12
-- Ubuntu 20.04, 22.04, 24.04
-- RHEL 8 / 9, Rocky Linux 8 / 9, AlmaLinux 8 / 9, Oracle Linux 8 / 9, CentOS Stream 8 / 9
-- Fedora 38+
-- Amazon Linux 2
-- openSUSE Leap & Tumbleweed
-- Arch Linux (and derivatives such as Manjaro)
+
 - WSL2 (warns and skips service management when systemd is not available)
 
 ## Prerequisites

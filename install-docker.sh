@@ -18,6 +18,7 @@ WSL=0
 OS_FAMILY=""
 OS_NAME=""
 OS_VERSION_ID=""
+
 PACKAGE_MANAGER=""
 SYSTEMD_AVAILABLE=1
 SUPPORTED_CHANNELS=(stable test)
@@ -238,85 +239,46 @@ check_prereqs() {
     done
 }
 
+
 read_os_release() {
     if [[ ! -r /etc/os-release ]]; then
         die "Cannot read /etc/os-release; unsupported system."
     fi
     # shellcheck disable=SC1091
     source /etc/os-release
-    OS_NAME=${ID:-unknown}
-    OS_VERSION_ID=${VERSION_ID:-unknown}
-    case "$OS_NAME" in
-        debian|ubuntu|pop|elementary)
-            OS_FAMILY="debian"
-            PACKAGE_MANAGER="apt"
-            ;;
-        rhel|rocky|almalinux|ol|centos)
-            OS_FAMILY="rhel"
-            PACKAGE_MANAGER="dnf"
+
             ;;
         fedora)
             OS_FAMILY="fedora"
             PACKAGE_MANAGER="dnf"
+
             ;;
         amzn)
             OS_FAMILY="amazon"
             PACKAGE_MANAGER="yum"
+
             ;;
         opensuse-leap|opensuse-tumbleweed|sles)
             OS_FAMILY="suse"
             PACKAGE_MANAGER="zypper"
-            ;;
-        arch|manjaro)
-            OS_FAMILY="arch"
-            PACKAGE_MANAGER="pacman"
-            ;;
-        *)
-            die "Unsupported distribution '$OS_NAME'."
-            ;;
-    esac
+
 }
 
 validate_supported_versions() {
     case "$OS_FAMILY" in
         debian)
-            case "$OS_NAME" in
-                debian)
-                    [[ $OS_VERSION_ID =~ ^(11|12)$ ]] || die "Unsupported Debian version '$OS_VERSION_ID'."
-                    ;;
-                ubuntu)
-                    case "$OS_VERSION_ID" in
-                        20.04|22.04|24.04) : ;;
-                        *) die "Unsupported Ubuntu version '$OS_VERSION_ID'." ;;
-                    esac
-                    ;;
-                *)
-                    die "Unsupported Debian-based distribution '$OS_NAME'."
-                    ;;
-            esac
-            ;;
-        rhel)
-            case "$OS_NAME" in
-                rhel|rocky|almalinux|centos|ol)
-                    case "$OS_VERSION_ID" in
-                        8*|9*) : ;;
-                        *) die "Unsupported RHEL-based version '$OS_VERSION_ID'." ;;
-                    esac
-                    ;;
-                *) die "Unsupported RHEL-like distribution '$OS_NAME'." ;;
+
             esac
             ;;
         fedora)
             [[ ${OS_VERSION_ID%%.*} -ge 38 ]] || die "Fedora $OS_VERSION_ID is not supported (need 38+)."
+
             ;;
         amazon)
             [[ $OS_VERSION_ID == "2" ]] || die "Only Amazon Linux 2 is supported."
             ;;
         suse)
-            :
-            ;;
-        arch)
-            :
+
             ;;
         *)
             die "Unsupported OS family '$OS_FAMILY'."
@@ -392,7 +354,7 @@ verify_and_install_key() {
 setup_repo_debian() {
     local arch
     arch=$(dpkg --print-architecture)
-    local codename="${VERSION_CODENAME:-}"
+
     if [[ -z $codename ]]; then
         if command -v lsb_release >/dev/null 2>&1; then
             codename=$(lsb_release -cs)
@@ -400,7 +362,7 @@ setup_repo_debian() {
             die "Unable to determine Debian/Ubuntu codename."
         fi
     fi
-    local repo="deb [arch=$arch signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$OS_NAME $codename $CHANNEL"
+
 
     if [[ $DRY_RUN -eq 1 ]]; then
         log "[dry-run] Would configure APT repo: $repo"
@@ -416,7 +378,7 @@ setup_repo_debian() {
         run_root_cmd mkdir -p /etc/apt/keyrings
         run_root_cmd chmod 0755 /etc/apt/keyrings
     fi
-    verify_and_install_key "https://download.docker.com/linux/$OS_NAME/gpg" \
+
         "/etc/apt/keyrings/docker.gpg" "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
 
     local repo_file="/etc/apt/sources.list.d/docker.list"
